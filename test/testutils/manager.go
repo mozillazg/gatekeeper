@@ -22,6 +22,7 @@ func StartManager(ctx context.Context, t *testing.T, mgr manager.Manager) {
 	}()
 
 	t.Cleanup(func() {
+		t.Log("start cleanup")
 		cancel()
 
 		mgrStopped.Wait()

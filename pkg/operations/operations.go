@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 )
 
 type Operation string
@@ -40,6 +41,8 @@ type opSet struct {
 	assignedOperations map[Operation]bool
 	assignedStringList []string // cached serialization of the opSet
 	initialized        bool
+
+	mu sync.RWMutex
 }
 
 var _ flag.Value = &opSet{}
@@ -55,6 +58,8 @@ func newOperationSet() *opSet {
 }
 
 func (l *opSet) String() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	contents := make([]string, 0)
 	for k := range l.assignedOperations {
 		contents = append(contents, string(k))
@@ -63,6 +68,9 @@ func (l *opSet) String() string {
 }
 
 func (l *opSet) Set(s string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	if !l.initialized {
 		// When the user sets an explicit value, start fresh (no default all-values)
 		l.assignedOperations = make(map[Operation]bool)
@@ -84,6 +92,8 @@ func init() {
 
 // AssignedOperations returns a map of operations assigned to the pod.
 func AssignedOperations() map[Operation]bool {
+	operations.mu.RLock()
+	defer operations.mu.RUnlock()
 	ret := make(map[Operation]bool)
 	for k, v := range operations.assignedOperations {
 		ret[k] = v
@@ -93,12 +103,17 @@ func AssignedOperations() map[Operation]bool {
 
 // IsAssigned returns true when the provided operation is assigned to the pod.
 func IsAssigned(op Operation) bool {
+	operations.mu.RLock()
+	defer operations.mu.RUnlock()
 	return operations.assignedOperations[op]
 }
 
 // AssignedStringList returns a list of all operations assigned to the pod
 // as a sorted list of strings.
 func AssignedStringList() []string {
+	operations.mu.Lock()
+	defer operations.mu.Unlock()
+
 	if operations.assignedStringList != nil {
 		return operations.assignedStringList
 	}
